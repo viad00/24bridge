@@ -68,7 +68,7 @@ bool RXFlag = false;
 bool setMode = false;
 bool oldMode = false;
 
-#define DEBUG                                 //enable define to see debug information
+//#define DEBUG                                 //enable define to see debug information
 #define SENDREADY                               //enable define to see Ready control message at start
 
 #ifdef DEBUG

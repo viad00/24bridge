@@ -16,7 +16,7 @@ namespace lora {
 //------------------------------------------------------------------------------
 // Constants
 
-static const char* kSerialDevice = "/dev/ttyUSB1";
+static const char* kSerialDevice = "/dev/ttyUSB0";
 
 static const int kModeSwitchWaitUsec = 100 * 1000; // 100 msec
 

@@ -49,6 +49,7 @@
 
 /// Library header version
 #define GF256_VERSION 2
+#define LINUX_ARM 1
 
 //------------------------------------------------------------------------------
 // Platform/Architecture
