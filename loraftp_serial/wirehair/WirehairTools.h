@@ -34,6 +34,11 @@
 #include "gf256.h"
 #include <new> // std::nothrow
 
+#ifndef INT64_C
+#define INT64_C(c) (c ## LL)
+#define UINT64_C(c) (c ## ULL)
+#endif
+
 // Compiler-specific debug break
 #if defined(_DEBUG) || defined(DEBUG)
     #define CAT_DEBUG

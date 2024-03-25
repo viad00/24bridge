@@ -5,6 +5,8 @@
 #include "tools.hpp"
 #include "linux_serial.hpp"
 
+# define UINT16_C(c)	c
+
 namespace lora {
 
 

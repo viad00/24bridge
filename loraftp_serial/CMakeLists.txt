@@ -18,7 +18,8 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
 else()
     # Warnings
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Wno-psabi")
+    set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu11")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -Wno-psabi -std=c++11 -D_GLIBCXX_USE_NANOSLEEP")
 
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fstack-protector")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3")
@@ -44,7 +45,9 @@ file(GLOB ZSTD_SOURCE_FILES
 )
 
 # Zstd library
-add_library(zstd ${ZSTD_SOURCE_FILES})
+include(GenerateExportHeader)
+add_library(zstd SHARED ${ZSTD_SOURCE_FILES})
+generate_export_header(zstd)
 target_include_directories(zstd PUBLIC
     zstd_lib
 )

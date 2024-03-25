@@ -9,6 +9,9 @@
 #include <system_error>
 
 #include <spdlog/spdlog.h>
+#include <iostream>
+
+# define UINT32_C(c)	c ## U
 
 namespace lora {
 

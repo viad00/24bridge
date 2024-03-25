@@ -27,6 +27,7 @@ using namespace lora;
 #include <chrono>
 using namespace std;
 
+#include <stdlib.h>
 
 //------------------------------------------------------------------------------
 // Entrypoint
@@ -44,7 +45,7 @@ int main(int argc, char* argv[])
 
     int id;
     if (argc != 2) {
-        spdlog::warn("No ID argument provided.  Using ID=-1 for receiver side");
+        //spdlog::warn("No ID argument provided.  Using ID=-1 for receiver side");
         id = -1;
     } else {
         id = atoi(argv[1]);
@@ -58,7 +59,7 @@ int main(int argc, char* argv[])
     // and constantly waits 2 seconds before bursting out a few messages.
     // Seems broken.
     if (!waveshare.Initialize(channel, (uint16_t)id, false/*LBT*/)) {
-        spdlog::error("Failed to initialize");
+        //spdlog::error("Failed to initialize");
         return -1;
     }
 
@@ -66,7 +67,7 @@ int main(int argc, char* argv[])
 
     uint64_t t0 = GetTimeMsec();
 
-    spdlog::info("Listening...");
+    //spdlog::info("Listening...");
 
     uint32_t counter = 0;
 
@@ -88,10 +89,10 @@ int main(int argc, char* argv[])
                 };
                 *(uint32_t*)data = counter++;
                 if (!waveshare.Send(data, packet_bytes)) {
-                    spdlog::error("waveshare.Send failed");
+                    //spdlog::error("waveshare.Send failed");
                     return -1;
                 }
-                spdlog::info("Sent: Ping SendQueueBytes={}", waveshare.GetSendQueueBytes());
+                //spdlog::info("Sent: Ping SendQueueBytes={}", waveshare.GetSendQueueBytes());
                 t0 = t1;
             }
         }
@@ -103,9 +104,9 @@ int main(int argc, char* argv[])
                 for (int i = 0; i < bytes; ++i) {
                     oss << " " << (int)data[i];
                 }
-                spdlog::info("{}", oss.str());
+                //spdlog::info("{}", oss.str());
             })) {
-                spdlog::error("Link broken");
+                //spdlog::error("Link broken");
                 break;
             }
         }
