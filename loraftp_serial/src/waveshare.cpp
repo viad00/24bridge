@@ -16,7 +16,7 @@ namespace lora {
 //------------------------------------------------------------------------------
 // Constants
 
-static const char* kSerialDevice = "/dev/ttyUSB0";
+//static const char* kSerialDevice = "/dev/ttyUSB0";
 
 static const int kModeSwitchWaitUsec = 100 * 1000; // 100 msec
 
@@ -156,7 +156,7 @@ bool Waveshare::Initialize(int channel, uint16_t transmit_addr, bool lbt)
 
 void Waveshare::Shutdown()
 {
-    Serial.Shutdown();
+    //Serial.Shutdown();
     //gpioTerminate();
 }
 
@@ -168,8 +168,9 @@ bool Waveshare::EnterConfigMode()
 
     spdlog::debug("Closing serial port...");
 
-    Serial.Flush();
-    Serial.Shutdown();
+    //Serial.Flush();
+    //Serial.Shutdown();
+    fflush(stdout);
 
     spdlog::debug("Entering config mode...");
 
@@ -179,10 +180,13 @@ bool Waveshare::EnterConfigMode()
 
     spdlog::debug("Opening serial port...");
 
-    if (!Serial.Initialize(kSerialDevice, Baudrate)) {
-        spdlog::error("Failed to open serial port: {}", kSerialDevice);
-        return false;
-    }
+    // if (!Serial.Initialize(kSerialDevice, Baudrate)) {
+    //     spdlog::error("Failed to open serial port: {}", kSerialDevice);
+    //     return false;
+    // }
+
+    freopen(NULL, "rb", stdin);
+    freopen(NULL, "wb", stdout);
 
     spdlog::debug("Now in config mode");
     InConfigMode = true;
@@ -198,8 +202,9 @@ bool Waveshare::EnterTransmitMode()
 
     spdlog::debug("Closing serial port...");
 
-    Serial.Flush();
-    Serial.Shutdown();
+    // Serial.Flush();
+    // Serial.Shutdown();
+    fflush(stdout);
 
     spdlog::debug("Entering transmit mode...");
 
@@ -209,10 +214,13 @@ bool Waveshare::EnterTransmitMode()
 
     spdlog::debug("Opening serial port...");
 
-    if (!Serial.Initialize(kSerialDevice, Baudrate)) {
-        spdlog::error("Failed to open serial port: {} baudrate={}", kSerialDevice, Baudrate);
-        return false;
-    }
+    // if (!Serial.Initialize(kSerialDevice, Baudrate)) {
+    //     spdlog::error("Failed to open serial port: {} baudrate={}", kSerialDevice, Baudrate);
+    //     return false;
+    // }
+
+    freopen(NULL, "rb", stdin);
+    freopen(NULL, "wb", stdout);
 
     spdlog::debug("Now in transmit mode");
     InConfigMode = false;
@@ -256,7 +264,15 @@ void Waveshare::DrainReceiveBuffer()
     // Receive state must be reset if we drain the buffer
     RecvOffsetBytes = 0;
 
-    int available_bytes = Serial.GetAvailable();
+    fd_set rd;
+    struct timeval tv={0};
+    int ret;
+
+    FD_ZERO(&rd);
+    FD_SET(STDIN_FILENO, &rd);
+    ret=select(1, &rd, NULL, NULL, &tv);
+
+    int available_bytes = ret; //Serial.GetAvailable();
 
     if (available_bytes <= 0) {
         return; // Done!
@@ -268,7 +284,7 @@ void Waveshare::DrainReceiveBuffer()
         if (read_bytes > 256) {
             read_bytes = 256;
         }
-        read_bytes = Serial.Read(buffer, read_bytes);
+        read_bytes -= fread(buffer, 1, read_bytes, stdin); //Serial.Read(buffer, read_bytes);
         if (read_bytes <= 0) {
             return; // Done!
         }
@@ -450,7 +466,7 @@ bool Waveshare::Send(const uint8_t* data, int bytes)
     WriteU32_LE(frame + 1, FastCrc32(data, bytes));
     memcpy(frame + 1 + 4, data, bytes);
 
-    return Serial.Write(frame, 1 + 4 + bytes);
+    return fwrite(frame, 1, 1+4+bytes, stdout); //Serial.Write(frame, 1 + 4 + bytes);
 }
 
 bool Waveshare::FillRecvBuffer()
@@ -459,8 +475,15 @@ bool Waveshare::FillRecvBuffer()
     if (remaining_buffer_bytes <= 0) {
         return true;
     }
+    fd_set rd;
+    struct timeval tv={0};
+    int ret;
 
-    const int available = Serial.GetAvailable();
+    FD_ZERO(&rd);
+    FD_SET(STDIN_FILENO, &rd);
+    ret=select(1, &rd, NULL, NULL, &tv);
+
+    const int available = ret; //Serial.GetAvailable();
     if (available < 0) {
         RecvOffsetBytes = 0;
         return false;
@@ -474,7 +497,7 @@ bool Waveshare::FillRecvBuffer()
         read_bytes = remaining_buffer_bytes;
     }
 
-    int r = Serial.Read(RecvBuffer + RecvOffsetBytes, read_bytes);
+    int r = fread(RecvBuffer + RecvOffsetBytes, 1, read_bytes, stdin); // Serial.Read(RecvBuffer + RecvOffsetBytes, read_bytes);
     if (r != read_bytes) {
         RecvOffsetBytes = 0;
         return false;

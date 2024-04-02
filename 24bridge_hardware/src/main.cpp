@@ -18,6 +18,7 @@
 
 #include <SPI.h>                                //the LoRa device is SPI based so load the SPI library                                         
 #include <SX128XLT.h>                           //include the appropriate library  
+#include <crc8.h>
 
 SX128XLT LoRa;                                  //create a library class instance called LoRa
 
@@ -29,7 +30,7 @@ SX128XLT LoRa;                                  //create a library class instanc
 #define DIO1 4                                  //DIO1 pin on LoRa device, used for sensing RX and TX done
 #define LED1 15                                  //indicator LED
 #define LORA_DEVICE DEVICE_SX1280               //we need to define the LoRa device we are using
-#define TXpower 2                              //LoRa transmit power in dBm
+#define TXpower tx_power                              //LoRa transmit power in dBm
 
 uint8_t TXPacketL;                              //length of transmitted packet
 uint8_t RXPacketL;                              //length of received acknowledge
@@ -50,6 +51,7 @@ uint8_t Bandwidth = LORA_BW_0800;         //LoRa bandwidth
 uint8_t SpreadingFactor = LORA_SF6;       //LoRa spreading factor
 uint8_t CodeRate = LORA_CR_4_5;           //LoRa coding rate
 uint16_t NetworkID = 0x1337;              //a unique identifier to go out with packet = 0x3210;
+uint8_t tx_power = 2;
 
 uint32_t SerialTimeoutuS = 50;                       //Timeout in uS before assuming message to send is complete
 const uint32_t TimeoutCharacters = 10;          //number of characters at specified baud rate that are a serial timeout
@@ -74,6 +76,131 @@ bool oldMode = false;
 #ifdef DEBUG
 #define DebugSerial Serial                      //assign serial port for outputing debug data 
 #endif
+
+struct ControlComm {
+    uint32_t magic;
+    uint8_t request;
+    uint8_t answer;
+    uint8_t ttl;
+    uint8_t mask;
+    uint32_t value;
+    uint8_t crc;
+};
+
+#define MAGIC 0xFACEFEED
+#define ES24_HELLO 0
+#define ANS 1
+#define ES24_FREQ 2
+#define ES24_OFFSET 3
+#define ES24_BANDWIDTH 4
+#define ES24_SF 5
+#define ES24_CR 6
+#define ES24_NETWORKID 7
+#define ES24_SERTIMEOUT 8
+#define ES24_TXPOWER 9
+#define ES24_RESET 10
+
+void sendMessage(ControlComm s) {
+  Message[0] = 2;
+  Message[1] = 0;
+  rlz_lib::Crc8::Generate((unsigned char*)&s + 4, 4+4, &s.crc);
+  memcpy(&Message[2], &s, sizeof(struct ControlComm));
+  LoRa.transmitReliable(Message, 2+sizeof(struct ControlComm)-3, NetworkID, TXtimeoutmS, TXpower, WAIT_TX);
+  #ifdef DEBUG
+  DebugSerial.printf("send %X %hhd %hhd %hhX %hhX %X %hhX\n", s.magic, s.request, s.answer, s.ttl, s.mask, s.value, s.crc);
+    for (int i = 0; i < sizeof(struct ControlComm)-3; i++) {
+        DebugSerial.printf("\\x%hhX", *((uint8_t*) &s + i));
+    }
+    DebugSerial.printf("\n");
+  #endif
+  SerialOutput.write((uint8_t*)&s, sizeof(struct ControlComm));
+}
+
+void parseBuff(uint8_t* buff, uint8_t size) {
+    unsigned int pattern[] = { MAGIC };
+    void* pointer = memmem(buff, size, pattern, sizeof(pattern));
+    if (pointer == NULL) return;
+    ControlComm value = *((ControlComm*)pointer);
+    bool check = false;
+    rlz_lib::Crc8::Verify((unsigned char*)&value + 4, 4+4, value.crc, &check);
+    #ifdef DEBUG
+    DebugSerial.printf("recv %X %hhd %X %hhX %hhd\n", value.magic, value.request, value.value, value.crc, check);
+    for (int i = 0; i < sizeof(struct ControlComm); i++) {
+        DebugSerial.printf("\\x%hhX", *((uint8_t*) &value + i));
+    }
+    DebugSerial.printf("\n");
+    #endif
+    uint8_t run = (value.ttl & value.mask);
+    if (check && value.ttl && !run) {
+      ControlComm ans = value;
+      ans.ttl = ans.ttl >> 1;
+      ans.crc = 0;
+      sendMessage(ans);
+    }
+    if (check && value.ttl && run) {
+      ControlComm ans;
+      switch (value.request)
+      {
+      case ES24_HELLO:
+        ans = { MAGIC, ES24_HELLO, ANS, (uint8_t)(value.ttl >> 1), value.mask, (uint32_t)((value.answer << 16) + (value.ttl << 8) + value.mask), 0};
+        sendMessage(ans);
+        break;
+      case ES24_FREQ:
+        Frequency = value.value;
+        ans = { MAGIC, ES24_FREQ, ANS, (uint8_t)(value.ttl >> 1), value.mask, Frequency, 0 };
+        sendMessage(ans);
+        LoRa.setRfFrequency(Frequency, Offset);
+        break;
+      case ES24_OFFSET:
+        Offset = value.value;
+        ans = { MAGIC, ES24_OFFSET, ANS, (uint8_t)(value.ttl >> 1), value.mask, Offset, 0 };
+        sendMessage(ans);
+        LoRa.setRfFrequency(Frequency, Offset);
+        break;
+      case ES24_BANDWIDTH:
+        Bandwidth = (uint8_t) value.value;
+        ans = { MAGIC, ES24_BANDWIDTH, ANS, (uint8_t)(value.ttl >> 1), value.mask, Bandwidth, 0 };
+        sendMessage(ans);
+        LoRa.setModulationParams(SpreadingFactor, Bandwidth, CodeRate);
+        break;
+      case ES24_SF:
+        SpreadingFactor = (uint8_t) value.value;
+        ans = { MAGIC, ES24_SF, ANS, (uint8_t)(value.ttl >> 1), value.mask, SpreadingFactor, 0 };
+        sendMessage(ans);
+        LoRa.setModulationParams(SpreadingFactor, Bandwidth, CodeRate);
+        break;
+      case ES24_CR:
+        CodeRate = (uint8_t) value.value;
+        ans = { MAGIC, ES24_CR, ANS, (uint8_t)(value.ttl >> 1), value.mask, CodeRate, 0 };
+        sendMessage(ans);
+        LoRa.setModulationParams(SpreadingFactor, Bandwidth, CodeRate);
+        break;
+      case ES24_NETWORKID:
+        ans = { MAGIC, ES24_NETWORKID, ANS, (uint8_t)(value.ttl >> 1), value.mask, value.value, 0 };
+        sendMessage(ans);
+        NetworkID = (uint16_t) value.value;
+        break;
+      case ES24_SERTIMEOUT:
+        ans = { MAGIC, ES24_SERTIMEOUT, ANS, (uint8_t)(value.ttl >> 1), value.mask, value.value, 0 };
+        sendMessage(ans);
+        SerialTimeoutuS = value.value;
+        break;
+      case ES24_TXPOWER:
+        ans = { MAGIC, ES24_TXPOWER, ANS, (uint8_t)(value.ttl >> 1), value.mask, value.value, 0 };
+        sendMessage(ans);
+        tx_power = (uint8_t) value.value;
+        break;
+      case ES24_RESET:
+        ans = { MAGIC, ES24_RESET, ANS, (uint8_t)(value.ttl >> 1), value.mask, ES24_RESET, 0 };
+        sendMessage(ans);
+        delay(5);
+        ESP.restart();
+        break;
+      default:
+        break;
+      }
+    }
+}
 
 void processMessage(int MessageIDRX)
 {
@@ -103,6 +230,7 @@ void processControlMessage(int MessageIDRX)
     DebugSerial.println(F("Ready"));
     #endif
   }
+  parseBuff(Message, RXPacketL);
 }
 
 void packet_is_Error()
@@ -224,6 +352,7 @@ void loop()
     }
     DebugSerial.println();
 #endif
+    parseBuff(Message, receivedBytes);
     LoRa.transmitReliable(Message, receivedBytes, NetworkID, TXtimeoutmS, TXpower, NO_WAIT);
     attachInterrupt(DIO1, send, HIGH);
     break;
@@ -258,7 +387,8 @@ void setup()
   else
   {
     SerialInput.println(F("No LoRa device responding"));
-    while (1);
+    //while (1);
+    ESP.restart();
   }
 
   LoRa.setupLoRa(Frequency, Offset, SpreadingFactor, Bandwidth, CodeRate);

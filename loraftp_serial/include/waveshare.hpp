@@ -3,7 +3,7 @@
 #pragma once
 
 #include "tools.hpp"
-#include "linux_serial.hpp"
+//#include "linux_serial.hpp"
 
 # define UINT16_C(c)	c
 
@@ -63,7 +63,16 @@ public:
 
     int GetSendQueueBytes()
     {
-        return Serial.GetSendQueueBytes();
+        fd_set wd;
+        struct timeval tv={0};
+        int ret;
+
+        FD_ZERO(&wd);
+        FD_SET(STDOUT_FILENO, &wd);
+        ret=select(1, NULL, &wd, NULL, &tv);
+
+        return ret;
+        //return Serial.GetSendQueueBytes();
     }
 
     // Calls callback for each packet received.
@@ -80,7 +89,7 @@ public:
     float ChannelRssi[kChannelCount]; // dBm
 
 protected:
-    RawSerialPort Serial;
+    //RawSerialPort Serial;
     bool InConfigMode = false;
     int Baudrate = 57600;
     uint16_t TransmitAddress = kMonitorAddress;

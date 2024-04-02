@@ -12,6 +12,7 @@ using namespace lora;
 
 #include <thread>
 #include <chrono>
+#include <time.h>
 using namespace std;
 
 
@@ -63,7 +64,12 @@ int main(int argc, char* argv[])
 
     signal(SIGINT, SignalHandler);
 
+    long int target_time = time(NULL) + 30;
+
     while (!Terminated && !sender.IsTerminated()) {
+        if (time(NULL) > target_time) {
+            Terminated = true;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
