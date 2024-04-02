@@ -269,8 +269,9 @@ void FileReceiver::Loop()
 //------------------------------------------------------------------------------
 // FileSender
 
-bool FileSender::Initialize(const char* filepath, const uint8_t* file_data, int file_bytes)
+bool FileSender::Initialize(const char* filepath, const uint8_t* file_data, int file_bytes, useconds_t interval_usec)
 {
+    send_interval_usec = interval_usec;
     const char* last_slash0 = strrchr(filepath, '/');
     const char* last_slash1 = strrchr(filepath, '\\');
     const char* last_slash = last_slash0;
@@ -359,7 +360,7 @@ void FileSender::Loop()
 {
     spdlog::debug("FileSender::Loop started");
 
-    const int send_interval_usec = 100 * 1000;
+    //const int send_interval_usec = 100 * 1000;
 
     ScopedFunction term_scope([&]() {
         // All function exit conditions flag terminated

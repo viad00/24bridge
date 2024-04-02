@@ -84,7 +84,7 @@ public:
     {
         Shutdown();
     }
-    bool Initialize(const char* file_name, const uint8_t* file_data, int file_bytes);
+    bool Initialize(const char* file_name, const uint8_t* file_data, int file_bytes, useconds_t send_interval_usec);
     void Shutdown();
 
     bool IsTerminated() const
@@ -105,6 +105,8 @@ protected:
     std::vector<uint8_t> CompressedFile;
     size_t CompressedFileBytes = 0;
     uint32_t DecompressedBytes = 0;
+
+    useconds_t send_interval_usec;
 
     void Loop();
 };
